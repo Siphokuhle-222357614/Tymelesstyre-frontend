@@ -1,91 +1,22 @@
-export default class auth {
-  static API_URL = "http://localhost:8080/tymelesstyre/user/"; // avoid adding extra "s" there that's why it wasn't connecting
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
 
-  static async login(username, password) {
-    try {
-      const response = await fetch(this.API_URL + "login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref(null)
+  const isAuthenticated = computed(() => !!user.value)
 
-      const result = await response.text();
-      if (!response.ok) {
-        throw new Error(result || "Login failed. Please check your credentials.");
-      }
-
-      let role = "";
-      let redirectPath = "/";
-      if (result.includes("/admin/dashboard")) {
-        role = "ADMIN";
-        redirectPath = "/admin/users";
-      } else if (result.includes("/customer/dashboard")) {
-        role = "CUSTOMER";
-        redirectPath = "/";
-      } else {
-        throw new Error("Unknown role returned from backend");
-      }
-
-      const user = { username, role, redirectPath };
-      localStorage.setItem("user", JSON.stringify(user));
-
-      return user;
-    } catch (err) {
-      throw err;
-    }
+  const login = (userData) => {
+    user.value = userData
   }
 
-
-  static async register(username, email, password, role) {
-    try {
-      const payload = {
-        username,
-        email,
-        password,
-        role: role.toUpperCase(),
-      };
-
-      const response = await fetch(this.API_URL + "register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.text();
-      if (!response.ok) {
-        throw new Error(result || "Registration failed");
-      }
-
-      return result;
-    } catch (err) {
-      throw err;
-    }
+  const logout = () => {
+    user.value = null
   }
 
-
-  static logout() {
-    localStorage.removeItem("user");
+  return {
+    user,
+    isAuthenticated,
+    login,
+    logout
   }
-
-
-  static getCurrentUser() {
-    const user = localStorage.getItem("user");
-    return user ? JSON.parse(user) : null;
-  }
-
-  static isAuthenticated() {
-    return !!this.getCurrentUser();
-  }
-
-
-  static isAdmin() {
-    const user = this.getCurrentUser();
-    return user && user.role === "ADMIN";
-  }
-
-
-  static isCustomer() {
-    const user = this.getCurrentUser();
-    return user && user.role === "CUSTOMER";
-  }
-}
+})

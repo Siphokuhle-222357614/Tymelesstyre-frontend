@@ -1,6 +1,5 @@
 <template>
-
-  <div class="checkout-page">
+  <div class="checkoutView">
     <h1>Checkout</h1>
 
     <div class="checkout-grid">
@@ -8,84 +7,34 @@
         <h2>Shipping Information</h2>
         <form @submit.prevent="handleSubmit">
           <div class="form-group">
-            <label for="fullName">Full Name</label>
-            <input
-              id="fullName"
-              v-model="shippingInfo.fullName"
-              class="form-input"
-              :class="{ 'form-input-error': formErrors.fullName }"
-              required
-              aria-describedby="fullName-error"
-            />
-            <span v-if="formErrors.fullName" id="fullName-error" class="form-error">{{ formErrors.fullName }}</span>
+            <label>Full Name</label>
+            <input v-model="shippingInfo.fullName" class="form-input" required />
           </div>
 
           <div class="form-group">
-            <label for="address">Address</label>
-            <input
-              id="address"
-              v-model="shippingInfo.address"
-              class="form-input"
-              :class="{ 'form-input-error': formErrors.address }"
-              required
-              aria-describedby="address-error"
-            />
-            <span v-if="formErrors.address" id="address-error" class="form-error">{{ formErrors.address }}</span>
+            <label>Address</label>
+            <input v-model="shippingInfo.address" class="form-input" required />
           </div>
 
           <div class="form-group">
-            <label for="city">City</label>
-            <input
-              id="city"
-              v-model="shippingInfo.city"
-              class="form-input"
-              :class="{ 'form-input-error': formErrors.city }"
-              required
-              aria-describedby="city-error"
-            />
-            <span v-if="formErrors.city" id="city-error" class="form-error">{{ formErrors.city }}</span>
+            <label>City</label>
+            <input v-model="shippingInfo.city" class="form-input" required />
           </div>
 
           <div class="form-group">
-            <label for="postalCode">Postal Code</label>
-            <input
-              id="postalCode"
-              v-model="shippingInfo.postalCode"
-              class="form-input"
-              :class="{ 'form-input-error': formErrors.postalCode }"
-              pattern="[0-9]{4}"
-              maxlength="4"
-              required
-              aria-describedby="postalCode-error"
-            />
-            <span v-if="formErrors.postalCode" id="postalCode-error" class="form-error">{{ formErrors.postalCode }}</span>
+            <label>Postal Code</label>
+            <input v-model="shippingInfo.postalCode" class="form-input" required />
           </div>
 
           <h2>Payment Method</h2>
-          <div class="payment-methods" role="radiogroup" aria-labelledby="payment-method-label">
-            <h3 id="payment-method-label" class="sr-only">Select Payment Method</h3>
+          <div class="payment-methods">
             <label v-for="method in paymentMethods" :key="method" class="payment-method">
-              <input
-                type="radio"
-                v-model="paymentMethod"
-                :value="method"
-                class="payment-radio"
-                :aria-label="'Pay with ' + method"
-              />
+              <input type="radio" v-model="paymentMethod" :value="method" class="payment-radio" />
               {{ method }}
             </label>
           </div>
 
-          <div v-if="orderError" class="order-error" role="alert">
-            {{ orderError }}
-          </div>
-
-          <button
-            type="submit"
-            class="btn-primary"
-            :disabled="processing || !isFormValid"
-            :aria-label="processing ? 'Processing order...' : 'Place order'"
-          >
+          <button type="submit" class="btn-primary" :disabled="processing">
             {{ processing ? 'Processing...' : 'Place Order' }}
           </button>
         </form>
@@ -97,23 +46,11 @@
         <!-- Voucher slot -->
         <div class="voucher-slot">
           <label for="voucher">Voucher Code:</label>
-          <input
-            id="voucher"
-            v-model="voucherCode"
-            class="form-input"
-            placeholder="Enter voucher code"
-            :disabled="voucherApplying"
-          />
-          <button
-            class="btn-primary"
-            @click="applyVoucher"
-            :disabled="voucherApplying || !voucherCode.trim()"
-            :aria-label="voucherApplying ? 'Applying voucher...' : 'Apply voucher'"
-          >
+          <input id="voucher" v-model="voucherCode" class="form-input" placeholder="Enter voucher code" />
+          <button class="btn-primary" @click="applyVoucher" :disabled="voucherApplying">
             {{ voucherApplying ? 'Applying...' : 'Apply Voucher' }}
           </button>
-          <span v-if="voucherError" class="voucher-error" role="alert">{{ voucherError }}</span>
-          <span v-if="voucherSuccess" class="voucher-success" role="status">{{ voucherSuccess }}</span>
+          <span v-if="voucherError" class="voucher-error">{{ voucherError }}</span>
         </div>
 
         <div class="summary-header">
@@ -131,20 +68,14 @@
           <span>{{ item.quantity }}</span>
           <span>R{{ (item.price * item.quantity).toFixed(2) }}</span>
         </div>
-
-        <div class="summary-totals">
-          <div class="summary-line">
-            <span>Subtotal:</span>
-            <span>R{{ cartSubtotal.toFixed(2) }}</span>
-          </div>
-          <div v-if="cartDiscount > 0" class="summary-discount">
-            <span>Discount:</span>
-            <span>-R{{ cartDiscount.toFixed(2) }}</span>
-          </div>
-          <div class="summary-total">
-            <span>Total:</span>
-            <span>R{{ cartTotal.toFixed(2) }}</span>
-          </div>
+        <div class="summary-total">
+          <strong>Subtotal: R{{ cartSubtotal }}</strong>
+        </div>
+        <div v-if="cartDiscount > 0" class="summary-discount">
+          <strong>Discount: -R{{ cartDiscount }}</strong>
+        </div>
+        <div class="summary-total">
+          <strong>Total: R{{ cartTotal }}</strong>
         </div>
       </div>
     </div>
@@ -152,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref } from 'vue'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
@@ -176,120 +107,58 @@ const shippingInfo = ref({
 const paymentMethod = ref('Credit Card')
 const paymentMethods = ['Credit Card', 'Debit Card', 'PayPal', 'Cash on Delivery']
 const processing = ref(false)
-const orderError = ref('')
 
-// Form validation
-const formErrors = ref({})
-
-const validateForm = () => {
-  const errors = {}
-
-  if (!shippingInfo.value.fullName.trim()) {
-    errors.fullName = 'Full name is required'
-  }
-
-  if (!shippingInfo.value.address.trim()) {
-    errors.address = 'Address is required'
-  }
-
-  if (!shippingInfo.value.city.trim()) {
-    errors.city = 'City is required'
-  }
-
-  if (!shippingInfo.value.postalCode.trim()) {
-    errors.postalCode = 'Postal code is required'
-  } else if (!/^\d{4}$/.test(shippingInfo.value.postalCode)) {
-    errors.postalCode = 'Postal code must be 4 digits'
-  }
-
-  formErrors.value = errors
-  return Object.keys(errors).length === 0
-}
-
-const isFormValid = computed(() => {
-  return Object.keys(formErrors.value).length === 0 &&
-         shippingInfo.value.fullName.trim() &&
-         shippingInfo.value.address.trim() &&
-         shippingInfo.value.city.trim() &&
-         /^\d{4}$/.test(shippingInfo.value.postalCode)
-})
-
-// Watch form fields for real-time validation
-watch(shippingInfo, () => {
-  if (Object.keys(formErrors.value).length > 0) {
-    validateForm()
-  }
-}, { deep: true })
-
-// Voucher functionality
 const voucherCode = ref('')
 const voucherApplying = ref(false)
 const voucherError = ref('')
-const voucherSuccess = ref('')
+//const voucherSuccess = ref('')
 
 const applyVoucher = async () => {
   if (!voucherCode.value.trim()) return
 
   voucherApplying.value = true
   voucherError.value = ''
-  voucherSuccess.value = ''
-
-  try {
-    // Simulate API call for voucher validation
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
-    // Use store action instead of direct mutation
-    const success = cartStore.applyVoucher(voucherCode.value)
-
-    if (success) {
-      voucherSuccess.value = 'Voucher applied successfully!'
-    } else {
-      voucherError.value = 'Invalid voucher code'
-    }
-  } catch (error) {
-    voucherError.value = 'Failed to apply voucher. Please try again.'
-    console.error('Voucher error:', error)
-  } finally {
-    voucherApplying.value = false
+  // Simulate voucher validation
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  if (voucherCode.value === 'DISCOUNT10') {
+    // Example: apply 10% discount
+    cartStore.applyDiscount(cartStore.cartSubtotal * 0.1)
+    voucherError.value = ''
+  } else {
+    voucherError.value = 'Invalid voucher code'
   }
+  voucherApplying.value = false
 }
 
 const handleSubmit = async () => {
   // Validate form before submission
+  // eslint-disable-next-line no-undef
   if (!validateForm()) {
     return
   }
 
   if (!authStore.isAuthenticated) {
-    orderError.value = 'Please login to complete your order'
-    setTimeout(() => {
-      router.push('/login')
-    }, 2000)
-    return
-  }
-
-  if (cartItems.value.length === 0) {
-    orderError.value = 'Your cart is empty'
+    alert('Please login to complete your order')
+    router.push('/login')
     return
   }
 
   processing.value = true
+  // eslint-disable-next-line no-undef
   orderError.value = ''
 
   try {
     const orderData = {
       userId: authStore.user.id,
-      items: cartItems.value,
+      items: cartItems,
       shippingAddress: shippingInfo.value,
       paymentMethod: paymentMethod.value,
-      totalAmount: parseFloat(cartTotal.value),
-      discount: parseFloat(cartDiscount.value),
-      subtotal: parseFloat(cartSubtotal.value),
+      totalAmount: parseFloat(cartTotal),
     }
 
-    // Simulate API call
+    // Simulate API call for now
     console.log('Order data would be sent to backend:', orderData)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API delay
 
     // Clear cart after successful order
     cartStore.clearCart()
@@ -297,7 +166,7 @@ const handleSubmit = async () => {
     // Redirect to confirmation page
     router.push('/order-confirmation/success')
   } catch (error) {
-    orderError.value = 'Failed to place order. Please try again.'
+    alert('Failed to place order. Please try again.')
     console.error('Order error:', error)
   } finally {
     processing.value = false
@@ -306,6 +175,37 @@ const handleSubmit = async () => {
 </script>
 
 <style scoped>
+/* Add styles for voucher slot and summary header */
+.voucher-slot {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.voucher-error {
+  color: rgba(133, 131, 131, 0.614);
+  margin-left: 1rem;
+}
+.summary-header {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
+  font-weight: bold;
+  padding: 0.5rem 0;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 0.5rem;
+}
+.summary-item {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+.summary-discount {
+  color: rgb(8, 102, 217);
+  font-weight: bold;
+  margin-top: 0.5rem;
+}
 .checkout-page {
   max-width: 1200px;
   margin: 0 auto;
@@ -386,7 +286,7 @@ const handleSubmit = async () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem;
+  padding: 0.5rem;
   border: 2px solid #e2e8f0;
   border-radius: 8px;
   cursor: pointer;
@@ -394,12 +294,7 @@ const handleSubmit = async () => {
 }
 
 .payment-method:hover {
-  border-color: var(--primary, #3b82f6);
-}
-
-.payment-method:has(input:checked) {
-  border-color: var(--primary, #3b82f6);
-  background-color: rgba(59, 130, 246, 0.1);
+  border-color: var(--primary);
 }
 
 .payment-radio {
@@ -502,64 +397,16 @@ const handleSubmit = async () => {
   display: flex;
   justify-content: space-between;
   padding: 0.5rem 0;
-}
-
-.summary-discount {
-  color: #059669;
-  font-weight: 600;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .summary-total {
-  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 0;
+  border-top: 2px solid #e2e8f0;
+  margin-top: 1rem;
   font-size: 1.2rem;
-  border-top: 1px solid #e2e8f0;
-  margin-top: 0.5rem;
-  padding-top: 1rem;
 }
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (max-width: 1024px) {
-  .summary-header,
-  .summary-item {
-    grid-template-columns: 1fr 1fr 80px 60px 80px;
-    font-size: 0.8rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .checkout-page {
-    padding: 1rem;
-  }
-
-  .checkout-form,
-  .order-summary {
-    padding: 1rem;
-  }
-
-  .summary-header,
-  .summary-item {
-    grid-template-columns: 2fr 1fr 1fr;
-    gap: 0.25rem;
-  }
-
-  .summary-header span:nth-child(2),
-  .summary-header span:nth-child(4),
-  .summary-item span:nth-child(2),
-  .summary-item span:nth-child(4) {
-    display: none;
-  }
-}
-
 </style>
 

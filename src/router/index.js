@@ -1,41 +1,41 @@
-import { createRouter, createWebHistory } from 'vue-router';
-import HomeView from '../views/HomeView.vue';
-import LoginView from '../views/LoginView.vue';
-import RegisterView from '../views/RegisterView.vue';
-import AdminUsersManagement from '../views/AdminUsersManagement.vue';
-import auth from '../stores/auth.js';
-
+import { createRouter, createWebHistory } from 'vue-router'
+import CheckoutView from '../views/CheckoutView.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const routes = [
-  { path: '/', name: 'home', component: HomeView },
-  { path: '/login', name: 'login', component: LoginView },
-  { path: '/register', name: 'register', component: RegisterView },
-
   {
-    path: '/admin/users', name: 'admin-users', component: AdminUsersManagement,
-    meta: { requiresAdmin: true }, 
+    path: '/checkout',
+    name: 'Checkout',
+    component: CheckoutView,
+    meta: { requiresAuth: true }
   },
-];
+  //{
+    //path: '/Login',
+    //name: 'Login',
+    //component: () => import('@/components/Login.vue')
+  //},
+  //{
+    //path: '/order-confirmation/:status',
+    //name: 'OrderConfirmation',
+    //component: () => import('@/components/OrderConfirmation.vue')
+  //}
+  // Add other routes as needed
+]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes,
-});
+  routes
+})
 
-
+// Navigation guard for authentication
 router.beforeEach((to, from, next) => {
-  
-  if (to.meta.requiresAdmin) {
-    if (!auth.isAuthenticated()) {
-      next('/login'); 
-    } else if (!auth.isAdmin()) {
-      next('/'); 
-    } else {
-      next(); 
-    }
-  } else {
-    next(); 
-  }
-});
+  const authStore = useAuthStore()
 
-export default router;
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    next('/login')
+  } else {
+    next()
+  }
+})
+
+export default router
