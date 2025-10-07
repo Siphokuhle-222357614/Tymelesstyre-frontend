@@ -5,7 +5,7 @@
     <form @submit.prevent="handleRegister">
       <div class="form-group">
         <label>Name</label>
-        <input v-model="fullName" type="text" placeholder="Enter your full name..." required />
+        <input v-model="name" type="text" placeholder="Enter your name..." required />
       </div>
 
       <div class="form-group">
@@ -21,6 +21,11 @@
       <div class="form-group">
         <label>Email address</label>
         <input v-model="email" type="email" placeholder="Enter your email address..." required />
+      </div>
+
+      <div class="form-group">
+        <label>Phone Number</label>
+        <input v-model="phoneNumber" type="tel" placeholder="Enter your phone number..." />
       </div>
 
       <div class="form-group">
@@ -54,30 +59,50 @@
 </template>
 
 <script>
+import auth from '../stores/auth.js';
+
 export default {
   name: "RegisterView",
   data() {
     return {
-      fullName: "",
+      name: "",
+      surname: "",
       username: "",
       email: "",
+      phoneNumber: "",
       password: "",
       confirmPassword: "",
       role: ""
-    }
+    };
   },
   methods: {
-    handleRegister() {
-      console.log('Registering:', {
-        fullName: this.fullName,
-        username: this.username,
-        email: this.email,
-        password: this.password,
-        role: this.role
-      });
+    async handleRegister() {
+      if (this.password !== this.confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+      }
+
+      try {
+        const result = await auth.register(
+        this.name,
+        this.surname,
+        this.username,
+        this.email,
+        this.phoneNumber,
+        this.password,
+        this.confirmPassword, 
+        this.role
+);
+
+
+        alert("Registration successful! Please login.");
+        this.$router.push("/login");
+      } catch (err) {
+        alert(err.message || "Registration failed");
+      }
     }
   }
-}
+};
 </script>
 
 <style scoped>
