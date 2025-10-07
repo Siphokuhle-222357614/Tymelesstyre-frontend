@@ -36,31 +36,37 @@ export default class auth {
   }
 
 
-  static async register(username, email, password, role) {
-    try {
-      const payload = {
-        username,
-        email,
-        password,
-        role: role.toUpperCase(),
-      };
+ static async register(name, surname, username, email, phoneNumber, password, confirmPassword, role) {
+  try {
+    const payload = {
+      name,
+      surname,
+      username,
+      email,
+      phoneNumber,
+      password,
+      confirmPassword,  
+      role: role.toUpperCase(),
+    };
 
-      const response = await fetch(this.API_URL + "register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    const response = await fetch(this.API_URL + "register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-      const result = await response.text();
-      if (!response.ok) {
-        throw new Error(result || "Registration failed");
-      }
-
-      return result;
-    } catch (err) {
-      throw err;
+    const result = await response.text();
+    if (!response.ok) {
+      throw new Error(result || "Registration failed");
     }
+
+    return result;
+  } catch (err) {
+    throw err;
   }
+}
+
+
 
 
   static logout() {
