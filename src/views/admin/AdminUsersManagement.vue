@@ -62,7 +62,7 @@
 </template>
 
 <script>
-import auth from "../stores/auth.js";
+import auth from "../../stores/auth.js";
 
 export default {
   name: "AdminUsersManagement",
