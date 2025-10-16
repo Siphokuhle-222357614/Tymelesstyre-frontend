@@ -66,9 +66,6 @@ export default class auth {
   }
 }
 
-
-
-
   static logout() {
     localStorage.removeItem("user");
   }
@@ -93,5 +90,25 @@ export default class auth {
   static isCustomer() {
     const user = this.getCurrentUser();
     return user && user.role === "CUSTOMER";
+  }
+
+  //auth for user profile
+   static async fetchUserDetails(username) {
+    try {
+      const response = await fetch(this.API_URL + `readByUsername/${username}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch user details");
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
   }
 }

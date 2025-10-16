@@ -1,6 +1,6 @@
 <template>
   <div class="profile-container">
-    <h2>Welcome, {{ user.name }}</h2>
+    <h2>Welcome, {{ userDetails.username || 'User' }}</h2>
 
     <div class="profile-nav">
       <button
@@ -24,30 +24,34 @@
     </div>
 
     <div class="profile-content">
-      <router-view></router-view>
+      <router-view :user-details="userDetails" />
     </div>
   </div>
 </template>
 
 <script>
-import auth from '@/stores/auth.js';
+import auth from '@/stores/auth.js'
 
 export default {
   name: 'ProfileView',
   data() {
     return {
-      user: {
-        name: 'User', // fallback
-      },
-    };
-  },
-  created() {
-    const currentUser = auth.getCurrentUser();
-    if (currentUser) {
-      this.user.name = currentUser.username; // or `currentUser.name` if you stored full name
+      userDetails: {}
     }
   },
-};
+  async created() {
+    const currentUser = auth.getCurrentUser()
+    if (currentUser && currentUser.username) {
+      try {
+        const data = await auth.fetchUserDetails(currentUser.username)
+        this.userDetails = data
+      } catch (err) {
+        console.error('Failed to fetch user details:', err)
+        alert('Failed to load profile details.')
+      }
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -57,7 +61,7 @@ export default {
   padding: 30px;
   background-color: #fff;
   border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 .profile-container h2 {
   text-align: center;
@@ -88,6 +92,5 @@ export default {
   background-color: #0069d9;
 }
 .profile-content {
-  /* Child content area */
 }
 </style>
