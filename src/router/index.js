@@ -18,13 +18,16 @@ const routes = [
   { path: '/cart', name: 'cart', component: CartView },
   { path: '/products', name: 'products', component: ProductsView },
 
-  {path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true },
+   {
+    path: '/profile',
+    name: 'profile',
+    component: ProfileView,
+    meta: { requiresAuth: true },
     children: [
-      // Use absolute path for redirect
       { path: '', redirect: '/profile/personal-details' },
-      { path: '/personal-details', name: 'personal-details', component: PersonalDetails },
-      { path: '/address-book', name: 'address-book', component: AddressBook },
-      { path: '/orders', name: 'orders', component: Orders },
+      { path: 'personal-details', name: 'personal-details', component: PersonalDetails },
+      { path: 'address-book', name: 'address-book', component: AddressBook },
+      { path: 'orders', name: 'orders', component: Orders },
     ],
   },
 
@@ -35,7 +38,7 @@ const routes = [
     meta: { requiresAdmin: true },
   },
 
-  // Catch-all redirect to home
+  
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 
@@ -44,7 +47,7 @@ const router = createRouter({
   routes,
 });
 
-// Global navigation guard
+
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAdmin) {
     if (!auth.isAuthenticated()) {
