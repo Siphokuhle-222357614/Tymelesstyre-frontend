@@ -312,7 +312,7 @@
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
-import api from '@/services/api'
+// import api from '@/services/api'
 
 export default {
   name: 'ProductsView',
@@ -355,29 +355,18 @@ export default {
       try {
         loading.value = true
         error.value = null
+        console.log('Fetching products from API...')
 
-        console.log('Fetching tyres from API...')
+        const response = await fetch('http://localhost:8080/tymelesstyre/api/products')
+        if (!response.ok) throw new Error('Failed to fetch products')
 
-        // Use your API service
-        const tyresData = await api.getAllTyres()
-        allTyres.value = tyresData
+        const productsData = await response.json()
+        allTyres.value = productsData
 
-        console.log('Tyres loaded successfully:', allTyres.value.length, 'items')
-
+        console.log('Products loaded successfully:', allTyres.value.length, 'items')
       } catch (err) {
-        console.error('Error fetching tyres:', err)
-
-        // Detailed error handling
-        if (err.response) {
-          error.value = `Server error: ${err.response.status} - ${err.response.statusText}`
-          console.error('Response data:', err.response.data)
-        } else if (err.request) {
-          error.value = 'Network error: Cannot connect to server. Please make sure the backend is running.'
-          console.error('Request details:', err.request)
-        } else {
-          error.value = `Error: ${err.message}`
-        }
-
+        console.error('Error fetching products:', err)
+        error.value = 'Failed to load products. Please try again.'
       } finally {
         loading.value = false
       }
@@ -387,8 +376,8 @@ export default {
     const testConnection = async () => {
       try {
         console.log('Testing API connection...')
-        const isHealthy = await api.healthCheck()
-        if (isHealthy) {
+        const response = await fetch('http://localhost:8080/tymelesstyre/api/products')
+        if (response.status === 200) {
           console.log('API health check: OK')
         } else {
           console.error('API health check: FAILED')
@@ -584,9 +573,31 @@ export default {
     }
 
     // Helper functions
-    const getTyreImage = (tyre) => {
-      return tyre.imageUrl || 'https://via.placeholder.com/300x200?text=Tyre+Image'
-    }
+const getTyreImage = (tyre) => {
+  // Hardcoded mapping of brands/models to images
+  const images = {
+    'Pirelli': '/images/tyres/pirelli.jpg',
+    'Michelin': '/images/tyres/Michelin.jpg',
+    'Bridgestone': '/images/tyres/Bridgestone.jpg',
+    'Goodyear': '/images/tyres/goodyear.avif',
+    'Continental': '/images/tyres/continental.jpg',
+    'Default': '/images/tyres/default.jpg'
+  }
+
+  // Match brand first
+  if (images[tyre.brand]) {
+    return images[tyre.brand]
+  }
+
+  // Optional: match model if needed
+  if (tyre.model && images[tyre.model]) {
+    return images[tyre.model]
+  }
+
+  // Fallback if no match found
+  return images['Default']
+}
+
 
     const formatPrice = (price) => {
       return parseFloat(price).toFixed(2)

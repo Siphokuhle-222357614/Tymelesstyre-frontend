@@ -7,7 +7,8 @@ import CartView from '../views/CartView.vue';
 import ProfileView from '../views/ProfileView.vue';
 import PersonalDetails from '../views/PersonalDetails.vue';
 import AddressBook from '../views/AddressBook.vue';
-import Orders from '../views/Orders.vue';
+import Orders from '../views/admin/OrdersView.vue';
+import ProductsView from '@/views/ProductsView.vue';
 import auth from '../stores/auth.js';
 
 const routes = [
@@ -15,18 +16,15 @@ const routes = [
   { path: '/login', name: 'login', component: LoginView },
   { path: '/register', name: 'register', component: RegisterView },
   { path: '/cart', name: 'cart', component: CartView },
+  { path: '/products', name: 'products', component: ProductsView },
 
-  {
-    path: '/profile',
-    name: 'profile',
-    component: ProfileView,
-    meta: { requiresAuth: true },
+  {path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true },
     children: [
       // Use absolute path for redirect
       { path: '', redirect: '/profile/personal-details' },
-      { path: 'personal-details', name: 'personal-details', component: PersonalDetails },
-      { path: 'address-book', name: 'address-book', component: AddressBook },
-      { path: 'orders', name: 'orders', component: Orders },
+      { path: '/personal-details', name: 'personal-details', component: PersonalDetails },
+      { path: '/address-book', name: 'address-book', component: AddressBook },
+      { path: '/orders', name: 'orders', component: Orders },
     ],
   },
 
