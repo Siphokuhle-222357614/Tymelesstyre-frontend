@@ -1,5 +1,6 @@
 export default class auth {
-  static API_URL = "http://localhost:8080/tymelesstyre/user/"; // avoid adding extra "s" there that's why it wasn't connecting
+  static API_URL = "http://localhost:8080/tymelesstyre/user/";
+
 
   static async login(username, password) {
     try {
@@ -29,45 +30,51 @@ export default class auth {
       const user = { username, role, redirectPath };
       localStorage.setItem("user", JSON.stringify(user));
 
+      
+      window.dispatchEvent(new Event("auth-change"));
+
       return user;
     } catch (err) {
       throw err;
     }
   }
 
+  
+  static async register(name, surname, username, email, phoneNumber, password, confirmPassword, role) {
+    try {
+      const payload = {
+        name,
+        surname,
+        username,
+        email,
+        phoneNumber,
+        password,
+        confirmPassword,
+        role: role.toUpperCase(),
+      };
 
- static async register(name, surname, username, email, phoneNumber, password, confirmPassword, role) {
-  try {
-    const payload = {
-      name,
-      surname,
-      username,
-      email,
-      phoneNumber,
-      password,
-      confirmPassword,  
-      role: role.toUpperCase(),
-    };
+      const response = await fetch(this.API_URL + "register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    const response = await fetch(this.API_URL + "register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      const result = await response.text();
+      if (!response.ok) {
+        throw new Error(result || "Registration failed");
+      }
 
-    const result = await response.text();
-    if (!response.ok) {
-      throw new Error(result || "Registration failed");
+      return result;
+    } catch (err) {
+      throw err;
     }
-
-    return result;
-  } catch (err) {
-    throw err;
   }
-}
 
+  
   static logout() {
     localStorage.removeItem("user");
+    
+    window.dispatchEvent(new Event("auth-change"));
   }
 
 
@@ -76,24 +83,23 @@ export default class auth {
     return user ? JSON.parse(user) : null;
   }
 
+  
   static isAuthenticated() {
     return !!this.getCurrentUser();
   }
-
 
   static isAdmin() {
     const user = this.getCurrentUser();
     return user && user.role === "ADMIN";
   }
 
-
   static isCustomer() {
     const user = this.getCurrentUser();
     return user && user.role === "CUSTOMER";
   }
 
-  //auth for user profile
-   static async fetchUserDetails(username) {
+ 
+  static async fetchUserDetails(username) {
     try {
       const response = await fetch(this.API_URL + `readByUsername/${username}`, {
         method: "GET",
