@@ -40,14 +40,21 @@ export default {
     }
   },
   async created() {
-    const currentUser = auth.getCurrentUser()
-    if (currentUser && currentUser.username) {
-      try {
-        const data = await auth.fetchUserDetails(currentUser.username)
-        this.userDetails = data
-      } catch (err) {
-        console.error('Failed to fetch user details:', err)
-        alert('Failed to load profile details.')
+    try {
+      // Use the new profile endpoint for current user
+      const data = await auth.getCurrentProfile()
+      this.userDetails = data
+      console.log('✅ Profile loaded:', data)
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err)
+      
+      // Fallback: try to get from localStorage
+      const currentUser = auth.getCurrentUser()
+      if (currentUser) {
+        this.userDetails = currentUser
+      } else {
+        alert('Failed to load profile details. Please login again.')
+        this.$router.push('/login')
       }
     }
   }
@@ -92,5 +99,6 @@ export default {
   background-color: #0069d9;
 }
 .profile-content {
+  padding: 20px 0;
 }
 </style>

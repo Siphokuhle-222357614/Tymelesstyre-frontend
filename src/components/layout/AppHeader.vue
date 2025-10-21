@@ -25,6 +25,23 @@
             <button class="dropdown-item logout-btn" @click="handleLogout">Logout</button>
           </div>
         </div>
+
+        <!-- Admin Panel Dropdown -->
+        <div v-if="isAdmin" class="admin-panel-dropdown">
+          <button class="admin-panel-btn" @click="toggleAdminPanel">
+            <svg width="22" height="22" style="vertical-align:middle;margin-right:6px;fill:var(--primary);">
+              <circle cx="11" cy="11" r="10" stroke="var(--primary-dark)" stroke-width="2" fill="var(--primary)" />
+              <text x="11" y="16" text-anchor="middle" font-size="12" fill="white">A</text>
+            </svg>
+            Admin Panel
+          </button>
+          <div v-if="showAdminPanel" class="admin-panel-menu">
+            <router-link to="/admin/users" class="admin-panel-item">Manage Users</router-link>
+            <router-link to="/admin/products" class="admin-panel-item">Manage Products</router-link>
+            <router-link to="/admin/orders" class="admin-panel-item">Manage Orders</router-link>
+            <router-link to="/admin/dashboard" class="admin-panel-item">Dashboard</router-link>
+          </div>
+        </div>
       </nav>
     </div>
   </header>
@@ -35,19 +52,23 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 import { storeToRefs } from 'pinia'
-import auth from '@/stores/auth.js' 
+import Auth from '@/stores/auth.js'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const { itemCount } = storeToRefs(cartStore)
 const cartItemCount = itemCount
 
-const isLoggedIn = ref(auth.isAuthenticated())
+const isLoggedIn = ref(Auth.isAuthenticated())
+const isAdmin = ref(Auth.isAdmin())
 const showDropdown = ref(false)
+const showAdminPanel = ref(false)
+
 
 onMounted(() => {
   const updateAuth = () => {
-    isLoggedIn.value = auth.isAuthenticated()
+    isLoggedIn.value = Auth.isAuthenticated()
+    isAdmin.value = Auth.isAdmin()
   }
 
   window.addEventListener('auth-change', updateAuth)
@@ -60,10 +81,16 @@ onMounted(() => {
 })
 
 
+
 function handleLogout() {
-  auth.logout()
+  Auth.logout()
   showDropdown.value = false
+  showAdminPanel.value = false
   router.push('/login')
+}
+
+function toggleAdminPanel() {
+  showAdminPanel.value = !showAdminPanel.value
 }
 
 function toggleDropdown() {
@@ -86,7 +113,7 @@ function toggleDropdown() {
   max-width: 1200px;
   margin: 0 auto;
   display: flex;
-  justify-content: space-between; 
+  justify-content: space-between;
   align-items: center;
   padding: 0 20px;
 }
@@ -134,7 +161,7 @@ function toggleDropdown() {
 }
 
 .profile-icon {
-  width: 28px; 
+  width: 28px;
   height: 28px;
   fill: var(--primary);
   cursor: pointer;
@@ -190,5 +217,57 @@ function toggleDropdown() {
     gap: 1rem;
     margin-top: 0.5rem;
   }
+}
+/* Admin Panel Styling */
+.admin-panel-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 1rem;
+}
+.admin-panel-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.2rem;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s;
+}
+.admin-panel-btn:hover {
+  background: var(--primary-dark);
+}
+.admin-panel-menu {
+  position: absolute;
+  top: 2.5rem;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  overflow: hidden;
+  z-index: 200;
+}
+.admin-panel-item {
+  padding: 0.8rem 1rem;
+  text-align: left;
+  background: none;
+  border: none;
+  width: 100%;
+  font-size: 0.97rem;
+  color: #333;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.admin-panel-item:hover {
+  background-color: #f3f3f3;
+  color: var(--primary);
 }
 </style>

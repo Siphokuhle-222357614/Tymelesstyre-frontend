@@ -1,46 +1,98 @@
-export default class auth {
-  static API_URL = "http://localhost:8080/tymelesstyre/user/";
+import api from '../services/api'
 
-
-  static async login(username, password) {
+export default class Auth {
+  // ==============================
+  // 🔹 Update User
+  // ==============================
+  static async updateUser(userId, userData) {
     try {
-      const response = await fetch(this.API_URL + "login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+      const updatedUser = await api.updateUser(userId, userData)
 
-      const result = await response.text();
-      if (!response.ok) {
-        throw new Error(result || "Login failed. Please check your credentials.");
+      // If the currently logged-in user is the one being updated, refresh localStorage
+      const currentUser = this.getCurrentUser()
+      if (currentUser && updatedUser.username === currentUser.username) {
+        const newUserData = {
+          ...currentUser,
+          ...updatedUser,
+          role: (updatedUser.role || currentUser.role || '').toUpperCase(),
+        }
+        localStorage.setItem('user', JSON.stringify(newUserData))
+        window.dispatchEvent(new Event('auth-change'))
       }
 
-      let role = "";
-      let redirectPath = "/";
-      if (result.includes("/admin/dashboard")) {
-        role = "ADMIN";
-        redirectPath = "/admin/users";
-      } else if (result.includes("/customer/dashboard")) {
-        role = "CUSTOMER";
-        redirectPath = "/";
-      } else {
-        throw new Error("Unknown role returned from backend");
-      }
-
-      const user = { username, role, redirectPath };
-      localStorage.setItem("user", JSON.stringify(user));
-
-      
-      window.dispatchEvent(new Event("auth-change"));
-
-      return user;
+      return updatedUser
     } catch (err) {
-      throw err;
+      const message = err?.response?.data || err.message || 'Error updating user'
+      throw new Error(message)
     }
   }
 
-  
-  static async register(name, surname, username, email, phoneNumber, password, confirmPassword, role) {
+  // ==============================
+  // 🔹 Login
+  // ==============================
+  static async login(username, password) {
+    try {
+      const data = await api.login({ username, password })
+
+      // Backend returns { token: '...', userId: ... }
+      const token = data?.token || data?.accessToken || data?.jwt
+      const userId = data?.userId
+      if (!token) throw new Error('Login failed: No token returned from server')
+
+      // Store token and userId
+      localStorage.setItem('authToken', token)
+      if (userId) {
+        localStorage.setItem('userId', userId)
+      }
+
+      // Fetch user profile using the new /user/profile endpoint
+      let userDetails = null
+      try {
+        userDetails = await api.getCurrentUserProfile()
+      } catch (err) {
+        console.warn('Could not fetch user profile, using fallback:', err)
+        // Fallback: fetch user by username
+        try {
+          userDetails = await api.getUserByUsername(username)
+        } catch {
+          userDetails = { username }
+        }
+      }
+
+      // Determine role and redirect path
+      const role = (userDetails?.role || 'CUSTOMER').toUpperCase()
+      let redirectPath = '/'
+      if (role === 'ADMIN' || role === 'ROLE_ADMIN') redirectPath = '/admin/users'
+
+      // Build user object
+      const user = {
+        userId: userDetails.userId || userId,
+        username: userDetails.username || username,
+        name: userDetails.name,
+        surname: userDetails.surname,
+        email: userDetails.email,
+        phoneNumber: userDetails.phoneNumber,
+        role,
+        redirectPath,
+      }
+
+      // Save user in localStorage
+      localStorage.setItem('user', JSON.stringify(user))
+      window.dispatchEvent(new Event('auth-change'))
+
+      return user
+    } catch (err) {
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('userId')
+      const message = err?.response?.data || err.message || 'Login failed'
+      throw new Error(message)
+    }
+  }
+
+  // ==============================
+  // 🔹 Register
+  // ==============================
+  static async register(name, surname, username, email, phoneNumber, password, confirmPassword, _role, street, city, state, postalCode, country) {
     try {
       const payload = {
         name,
@@ -50,71 +102,120 @@ export default class auth {
         phoneNumber,
         password,
         confirmPassword,
-        role: role.toUpperCase(),
-      };
-
-      const response = await fetch(this.API_URL + "register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.text();
-      if (!response.ok) {
-        throw new Error(result || "Registration failed");
+        // role omitted — backend defaults to CUSTOMER
+        street,
+        city,
+        state,
+        postalCode,
+        country,
       }
 
-      return result;
+      return await api.registerUser(payload)
     } catch (err) {
-      throw err;
+      const message = err?.response?.data || err.message || 'Registration failed'
+      throw new Error(message)
     }
   }
 
-  
+  // ==============================
+  // 🔹 Logout
+  // ==============================
   static logout() {
-    localStorage.removeItem("user");
-    
-    window.dispatchEvent(new Event("auth-change"));
+    localStorage.removeItem('user')
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('userId')
+    window.dispatchEvent(new Event('auth-change'))
   }
 
+  // ==============================
+  // 🔹 Get Current User Profile
+  // ==============================
+  static async getCurrentProfile() {
+    try {
+      const userDetails = await api.getCurrentUserProfile()
 
+      // Update localStorage with fresh data
+      const currentUser = this.getCurrentUser()
+      const updatedUser = {
+        ...currentUser,
+        ...userDetails,
+        role: (userDetails.role || currentUser?.role || 'CUSTOMER').toUpperCase()
+      }
+
+      localStorage.setItem('user', JSON.stringify(updatedUser))
+      window.dispatchEvent(new Event('auth-change'))
+
+      return updatedUser
+    } catch (err) {
+      const message = err?.response?.data || err.message || 'Failed to fetch profile'
+      throw new Error(message)
+    }
+  }
+
+  // ==============================
+  // 🔹 Change Password
+  // ==============================
+  static async changePassword(currentPassword, newPassword) {
+    try {
+      const currentUser = this.getCurrentUser()
+      if (!currentUser?.userId) {
+        throw new Error('User not found. Please login again.')
+      }
+
+      const passwordData = {
+        currentPassword,
+        newPassword
+      }
+
+      await api.changePassword(currentUser.userId, passwordData)
+      return { success: true, message: 'Password updated successfully' }
+    } catch (err) {
+      const message = err?.response?.data || err.message || 'Password change failed'
+      throw new Error(message)
+    }
+  }
+
+  // ==============================
+  // 🔹 Current User Helpers
+  // ==============================
   static getCurrentUser() {
-    const user = localStorage.getItem("user");
-    return user ? JSON.parse(user) : null;
+    const user = localStorage.getItem('user')
+    return user ? JSON.parse(user) : null
   }
 
-  
+  static getAuthToken() {
+    return localStorage.getItem('authToken')
+  }
+
   static isAuthenticated() {
-    return !!this.getCurrentUser();
+    return !!this.getAuthToken()
   }
 
   static isAdmin() {
-    const user = this.getCurrentUser();
-    return user && user.role === "ADMIN";
+    const user = this.getCurrentUser()
+    return user && (user.role === 'ADMIN' || user.role === 'ROLE_ADMIN')
   }
 
   static isCustomer() {
-    const user = this.getCurrentUser();
-    return user && user.role === "CUSTOMER";
+    const user = this.getCurrentUser()
+    return user && user.role === 'CUSTOMER'
   }
 
- 
+  // ==============================
+  // 🔹 Fetch User Details
+  // ==============================
   static async fetchUserDetails(username) {
+    // Try to use the profile endpoint first (for current user)
     try {
-      const response = await fetch(this.API_URL + `readByUsername/${username}`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch user details");
+      const currentUser = this.getCurrentUser()
+      if (currentUser && currentUser.username === username) {
+        return await this.getCurrentProfile()
       }
-
-      const data = await response.json();
-      return data;
-    } catch (err) {
-      console.error(err);
-      throw err;
+    } catch {
+      console.warn('Could not use profile endpoint, falling back to username lookup')
     }
+
+    // Fallback to username lookup
+    return api.getUserByUsername(username)
   }
 }

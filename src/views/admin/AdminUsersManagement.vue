@@ -62,7 +62,8 @@
 </template>
 
 <script>
-import auth from "../../stores/auth.js";
+import api from "@/services/api.js";
+import Auth from "@/stores/auth.js";
 
 export default {
   name: "AdminUsersManagement",
@@ -75,12 +76,7 @@ export default {
   methods: {
     async fetchUsers() {
       try {
-        const response = await fetch(
-          "http://localhost:8080/tymelesstyre/admin/users"
-        );
-        if (!response.ok) throw new Error("Failed to fetch users");
-        const data = await response.json();
-      
+        const data = await api.getAllUsers();
         this.users = data.filter((u) => u.role === "CUSTOMER");
       } catch (err) {
         console.error("Error fetching users:", err);
@@ -114,13 +110,7 @@ export default {
     async deleteUser(userId) {
       if (!confirm("Are you sure you want to delete this user?")) return;
       try {
-        const response = await fetch(
-          `http://localhost:8080/tymelesstyre/admin/users/${userId}`,
-          {
-            method: "DELETE",
-          }
-        );
-        if (!response.ok) throw new Error("Delete failed");
+        await api.deleteUser(userId);
         await this.fetchUsers();
       } catch (err) {
         console.error("Error deleting user:", err);
@@ -129,7 +119,7 @@ export default {
     },
   },
   mounted() {
-    const currentUser = auth.getCurrentUser();
+  const currentUser = Auth.getCurrentUser();
     if (!currentUser || currentUser.role !== "ADMIN") {
       this.$router.push("/login");
     } else {
@@ -199,17 +189,17 @@ button:hover {
 button:nth-child(1) {
   background-color: #28a745;
   color: white;
-} 
+}
 button:nth-child(2) {
   background-color: #6c757d;
   color: white;
-} 
+}
 button:nth-child(3) {
   background-color: #007bff;
   color: white;
-} 
+}
 button:nth-child(4) {
   background-color: #dc3545;
   color: white;
-} 
+}
 </style>

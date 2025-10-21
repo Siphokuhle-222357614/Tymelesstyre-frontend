@@ -127,23 +127,23 @@
         <div v-for="item in cartItems" :key="item.id" class="summary-item">
           <span>{{ item.brand }} {{ item.model }}</span>
           <span>{{ item.description || 'No description' }}</span>
-          <span>R{{ item.price.toFixed(2) }}</span>
+          <span>R{{ (item.price ? item.price : 0).toFixed(2) }}</span>
           <span>{{ item.quantity }}</span>
-          <span>R{{ (item.price * item.quantity).toFixed(2) }}</span>
+          <span>R{{ ((item.price ? item.price : 0) * (item.quantity ? item.quantity : 0)).toFixed(2) }}</span>
         </div>
 
         <div class="summary-totals">
           <div class="summary-line">
             <span>Subtotal:</span>
-            <span>R{{ cartSubtotal.toFixed(2) }}</span>
+            <span>R{{ cartSubtotal ? cartSubtotal : '0.00' }}</span>
           </div>
           <div v-if="cartDiscount > 0" class="summary-discount">
             <span>Discount:</span>
-            <span>-R{{ cartDiscount.toFixed(2) }}</span>
+            <span>-R{{ cartDiscount ? cartDiscount : '0.00' }}</span>
           </div>
           <div class="summary-total">
             <span>Total:</span>
-            <span>R{{ cartTotal.toFixed(2) }}</span>
+            <span>R{{ cartTotal ? cartTotal : '0.00' }}</span>
           </div>
         </div>
       </div>
@@ -152,18 +152,23 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useCartStore } from '@/stores/cart'
-import { useAuthStore } from '@/stores/auth'
+import Auth from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
+import api from '@/services/api'
 
 const cartStore = useCartStore()
-const authStore = useAuthStore()
 const router = useRouter()
 
 // Reactive cart data with proper reactivity
 const { cartItems, cartTotal, cartDiscount, cartSubtotal } = storeToRefs(cartStore)
+
+// Initialize cart on component mount
+onMounted(() => {
+  cartStore.initializeCart()
+})
 
 const shippingInfo = ref({
   fullName: '',
@@ -254,13 +259,18 @@ const applyVoucher = async () => {
   }
 }
 
+// Helper functions for enhanced error handling
+const showStockError = (errorText) => {
+  orderError.value = `Stock Error: ${errorText}\n\nSome items in your cart may no longer be available. Please review your cart and try again.`
+}
+
 const handleSubmit = async () => {
   // Validate form before submission
   if (!validateForm()) {
     return
   }
 
-  if (!authStore.isAuthenticated) {
+  if (!Auth.isAuthenticated()) {
     orderError.value = 'Please login to complete your order'
     setTimeout(() => {
       router.push('/login')
@@ -276,20 +286,75 @@ const handleSubmit = async () => {
   processing.value = true
   orderError.value = ''
 
+  console.log('🚀 Placing order with simplified validation - backend will handle stock checks...')
+
   try {
-    const orderData = {
-      userId: authStore.user.id,
-      items: cartItems.value,
-      shippingAddress: shippingInfo.value,
-      paymentMethod: paymentMethod.value,
-      totalAmount: parseFloat(cartTotal.value),
-      discount: parseFloat(cartDiscount.value),
-      subtotal: parseFloat(cartSubtotal.value),
+    // Build correct order payload for backend
+    const userId = localStorage.getItem('userId')
+    if (!userId || isNaN(parseInt(userId))) {
+      orderError.value = 'User not found. Please login again.'
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+      processing.value = false
+      return
     }
 
-    // Simulate API call
-    console.log('Order data would be sent to backend:', orderData)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    // Ensure cart totals are calculated
+    cartStore.calculateTotal()
+
+    // Calculate totals manually to ensure accuracy
+    const subtotal = cartItems.value.reduce((sum, item) => {
+      const price = parseFloat(item.price) || 0
+      const quantity = parseInt(item.quantity) || 0
+      return sum + (price * quantity)
+    }, 0)
+
+    const discount = parseFloat(cartDiscount.value) || 0
+    const finalTotal = subtotal - discount
+
+    // Validate order items according to backend requirements
+    const validOrderItems = cartItems.value.filter(item => {
+      const hasValidId = item.id !== null && item.id !== undefined && !isNaN(parseInt(item.id))
+      const hasValidPrice = !isNaN(parseFloat(item.price)) && parseFloat(item.price) > 0
+      const hasValidQuantity = !isNaN(parseInt(item.quantity)) && parseInt(item.quantity) > 0
+      return hasValidId && hasValidPrice && hasValidQuantity
+    }).map(item => ({
+      productId: parseInt(item.id),        // Long - Required
+      quantity: parseInt(item.quantity),   // int - Required, must be positive
+      price: parseFloat(item.price)        // BigDecimal - Required, must be positive
+    }))
+
+    if (validOrderItems.length === 0) {
+      orderError.value = 'No valid items in cart. Please refresh and try again.'
+      processing.value = false
+      return
+    }
+
+    // Build order payload exactly as expected by backend OrderDto
+    const orderData = {
+      userId: parseInt(userId),            // Long - Required
+      status: "pending",                   // String - Optional (will default to "pending")
+      totalPrice: finalTotal,              // Double - Optional
+      orderItems: validOrderItems          // Array - Required, must contain at least one item
+    }
+
+    console.log('Sending order data:', orderData)
+
+    // Note: Shipping info collected but not sent to backend in this version
+    // Future enhancement: Store shipping info separately or extend backend OrderDto
+    console.log('Shipping info (for future use):', {
+      fullName: shippingInfo.value.fullName.trim(),
+      address: shippingInfo.value.address.trim(),
+      city: shippingInfo.value.city.trim(),
+      postalCode: shippingInfo.value.postalCode.trim(),
+      country: shippingInfo.value.country,
+      paymentMethod: paymentMethod.value
+    })
+
+    // Send order to backend
+    const response = await api.createOrder(orderData)
+    console.log('Order created successfully:', response)
 
     // Clear cart after successful order
     cartStore.clearCart()
@@ -297,8 +362,45 @@ const handleSubmit = async () => {
     // Redirect to confirmation page
     router.push('/order-confirmation/success')
   } catch (error) {
-    orderError.value = 'Failed to place order. Please try again.'
-    console.error('Order error:', error)
+    console.error('Full order error:', error)
+
+    // More detailed error handling
+    if (error.response) {
+      // Server responded with error status
+      const status = error.response.status
+      const errorData = error.response.data
+
+      console.error('Server error response:', errorData)
+
+      if (status === 400) {
+        const errorText = typeof errorData === 'string' ? errorData : (errorData.message || 'Validation failed')
+
+        // Enhanced stock error handling
+        if (errorText.includes('Insufficient stock') || errorText.includes('stock')) {
+          showStockError(errorText)
+        } else if (errorText.includes('Product with ID') && errorText.includes('not found')) {
+          orderError.value = 'Some products in your cart are no longer available. Please refresh your cart and try again.'
+        } else {
+          orderError.value = `Order validation failed: ${errorText}`
+        }
+      } else if (status === 401) {
+        orderError.value = 'Session expired. Please login again.'
+        setTimeout(() => {
+          Auth.logout()
+          router.push('/login')
+        }, 2000)
+      } else if (status === 500) {
+        orderError.value = 'Server error. Please try again later.'
+      } else {
+        orderError.value = `Failed to place order (${status}). Please try again.`
+      }
+    } else if (error.request) {
+      // Network error
+      orderError.value = 'Network error. Please check your connection and try again.'
+    } else {
+      // Other error
+      orderError.value = error.message || 'Failed to place order. Please try again.'
+    }
   } finally {
     processing.value = false
   }

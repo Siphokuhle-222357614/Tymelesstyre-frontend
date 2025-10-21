@@ -7,9 +7,12 @@ import CartView from '../views/CartView.vue';
 import ProfileView from '../views/ProfileView.vue';
 import PersonalDetails from '../views/PersonalDetails.vue';
 import AddressBook from '../views/AddressBook.vue';
-import Orders from '../views/admin/OrdersView.vue';
+import AdminOrdersView from '../views/admin/OrdersView.vue';
+import CustomerOrdersView from '../views/CustomerOrdersView.vue';
 import ProductsView from '@/views/ProductsView.vue';
+import AdminProductsView from '../views/admin/ProductsView.vue';
 import auth from '../stores/auth.js';
+import CheckoutView from '../views/CheckoutView.vue';
 
 const routes = [
   { path: '/', name: 'home', component: HomeView },
@@ -17,6 +20,19 @@ const routes = [
   { path: '/register', name: 'register', component: RegisterView },
   { path: '/cart', name: 'cart', component: CartView },
   { path: '/products', name: 'products', component: ProductsView },
+  { path: '/checkout', name: 'checkout', component: CheckoutView },
+  {
+    path: '/admin/products',
+    name: 'admin-products',
+    component: AdminProductsView,
+    meta: { requiresAdmin: true },
+  },
+  {
+    path: '/admin/orders',
+    name: 'admin-orders',
+    component: AdminOrdersView,
+    meta: { requiresAdmin: true },
+  },
 
    {
     path: '/profile',
@@ -27,7 +43,7 @@ const routes = [
       { path: '', redirect: '/profile/personal-details' },
       { path: 'personal-details', name: 'personal-details', component: PersonalDetails },
       { path: 'address-book', name: 'address-book', component: AddressBook },
-      { path: 'orders', name: 'orders', component: Orders },
+      { path: 'orders', name: 'orders', component: CustomerOrdersView },
     ],
   },
 
@@ -38,7 +54,7 @@ const routes = [
     meta: { requiresAdmin: true },
   },
 
-  
+
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 

@@ -5,7 +5,7 @@
     <!-- Empty Cart -->
     <div v-if="cartItems.length === 0" class="empty-cart">
       <div class="empty-cart-icon">🛒</div>
-      <p>Your cart is empty</p>
+      <p>Your cart is feeling lonely :(</p>
       <router-link to="/products" class="btn-primary">Continue Shopping</router-link>
     </div>
 
@@ -16,17 +16,18 @@
         <div v-for="item in cartItems" :key="item.id" class="cart-item">
           <div class="item-info">
             <img
-              v-if="item.imageUrl"
-              :src="item.imageUrl"
+              v-if="item.imageUrl || item.image"
+              :src="item.imageUrl || item.image"
               alt="Product image"
               class="item-image"
+              @error="handleImageError"
             />
             <div class="details">
               <h3>{{ item.brand }} {{ item.model }}</h3>
               <p class="tire-size">
                 Size: {{ item.sectionWidth }}/{{ item.aspectRatio }}R{{ item.rimDiameter }}
               </p>
-              <p class="unit-price">R{{ item.price.toFixed(2) }} each</p>
+              <p class="unit-price">R{{ (item.price ? item.price : 0).toFixed(2) }} each</p>
             </div>
           </div>
 
@@ -50,7 +51,7 @@
             </div>
 
             <div class="item-total">
-              <p class="item-price">R{{ (item.price * item.quantity).toFixed(2) }}</p>
+              <p class="item-price">R{{ ((item.price ? item.price : 0) * (item.quantity ? item.quantity : 0)).toFixed(2) }}</p>
             </div>
 
             <button
@@ -69,22 +70,22 @@
         <div class="summary-content">
           <div class="summary-line">
             <span>Subtotal:</span>
-            <span>R{{ cartSubtotal }}</span>
+            <span>R{{ cartSubtotal ? cartSubtotal : '0.00' }}</span>
           </div>
 
           <div v-if="cartDiscount > 0" class="summary-line discount">
             <span>Discount:</span>
-            <span>-R{{ cartDiscount }}</span>
+            <span>-R{{ cartDiscount ? cartDiscount : '0.00' }}</span>
           </div>
 
           <div class="summary-line">
             <span>Estimated Shipping:</span>
-            <span>R{{ shippingCost.toFixed(2) }}</span>
+            <span>R{{ (shippingCost ? shippingCost : 0).toFixed(2) }}</span>
           </div>
 
           <div class="summary-line total">
             <span>Total:</span>
-            <span>R{{ cartTotalWithShipping.toFixed(2) }}</span>
+            <span>R{{ (cartTotalWithShipping ? cartTotalWithShipping : 0).toFixed(2) }}</span>
           </div>
 
           <router-link
@@ -116,7 +117,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCartStore } from '@/stores/cart'
 import { storeToRefs } from 'pinia'
 
@@ -147,6 +148,12 @@ const updateQuantity = async (productId, newQuantity) => {
     if (newQuantity < 1) {
       await cartStore.removeItem(productId)
     } else {
+      // Validate stock before updating quantity
+      const stockAvailable = await validateStockAvailability(productId, newQuantity)
+      if (!stockAvailable) {
+        return // Error message already shown by validation function
+      }
+
       await cartStore.updateQuantity(productId, newQuantity)
     }
   } catch (error) {
@@ -154,6 +161,33 @@ const updateQuantity = async (productId, newQuantity) => {
     showError('Failed to update quantity. Please try again.')
   } finally {
     isUpdating.value = false
+  }
+}
+
+const validateStockAvailability = async (productId, quantity) => {
+  try {
+    const response = await fetch(`http://localhost:8080/tymelesstyre/api/products/${productId}/validate-stock?quantity=${quantity}`)
+
+    if (!response.ok) {
+      if (response.status === 400) {
+        const errorData = await response.json()
+        showError(errorData.message || 'Insufficient stock available')
+        return false
+      }
+      throw new Error(`Stock validation failed: ${response.status}`)
+    }
+
+    const result = await response.json()
+    if (!result.available) {
+      showError(result.message || `Only ${result.availableQuantity || 0} items available in stock`)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('Stock validation error:', error)
+    showError('Unable to verify stock availability. Please try again.')
+    return false
   }
 }
 
@@ -184,9 +218,48 @@ const clearError = () => {
   errorMessage.value = ''
 }
 
+const handleImageError = (event) => {
+  // Set a fallback image when the image fails to load
+  event.target.src = '/images/tyres/default.jpg'
+  console.warn('Failed to load cart item image, using fallback')
+}
+
+// Periodic stock validation for cart items
+let stockCheckInterval = null
+
+const validateCartStock = async () => {
+  if (cartItems.value.length === 0) return
+
+  for (const item of cartItems.value) {
+    try {
+      const response = await fetch(`http://localhost:8080/tymelesstyre/api/products/${item.id}/validate-stock?quantity=${item.quantity}`)
+
+      if (!response.ok && response.status === 400) {
+        const errorData = await response.json()
+        showError(`${item.brand} ${item.model}: ${errorData.message || 'Stock insufficient'}`)
+      }
+    } catch (error) {
+      console.warn('Failed to validate stock for item:', item.id, error)
+    }
+  }
+}
+
+onMounted(() => {
+  // Check stock every 30 seconds for cart items
+  stockCheckInterval = setInterval(validateCartStock, 30000)
+})
+
+onUnmounted(() => {
+  if (stockCheckInterval) {
+    clearInterval(stockCheckInterval)
+  }
+})
+
 defineExpose({
   updateQuantity,
-  removeItem
+  removeItem,
+  handleImageError,
+  validateCartStock
 })
 </script>
 
@@ -267,9 +340,12 @@ h1 {
 .item-image {
   width: 80px;
   height: 80px;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
+  background: #f8f9fa;
+  padding: 4px;
 }
 .details h3 {
   font-size: 1.2rem;

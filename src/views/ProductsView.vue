@@ -19,6 +19,16 @@
       <div class="page-header">
         <h1>Tyre Catalog</h1>
         <p>Find the perfect tyres for your vehicle from our extensive collection</p>
+
+        <!-- Success Message -->
+        <div v-if="successMessage" class="success-message" role="alert">
+          <div class="success-content">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            {{ successMessage }}
+          </div>
+        </div>
       </div>
 
       <!-- Main Content Area -->
@@ -169,7 +179,7 @@
           <!-- Controls Bar -->
           <div class="controls-bar">
             <div class="results-count">
-              Showing {{ filteredTyres.length }} of {{ allTyres.length }} products
+              Showing {{ filteredProducts?.length || 0 }} of {{ allProducts?.length || 0 }} products
             </div>
 
             <div class="sort-controls">
@@ -213,52 +223,82 @@
           <!-- Products Grid/List -->
           <div :class="['products-container', gridView ? 'grid-view' : 'list-view']">
             <div
-              v-for="tyre in paginatedTyres"
-              :key="tyre.id"
-              class="tyre-card"
+              v-for="product in paginatedProducts"
+              :key="product.id"
+              class="product-card"
             >
-              <div class="tyre-image">
-                <img :src="getTyreImage(tyre)" :alt="tyre.brand + ' ' + tyre.model">
+              <div class="product-image">
+                <img
+                  :src="getProductImage(product)"
+                  :alt="product.productName + ' ' + (product.productModel || '')"
+                  @error="handleImageError"
+                  loading="lazy"
+                >
                 <button
                   class="wishlist-btn"
-                  @click="toggleWishlist(tyre)"
-                  :aria-label="'Add ' + tyre.brand + ' to wishlist'"
+                  @click="toggleWishlist(product)"
+                  :aria-label="'Add ' + product.productName + ' to wishlist'"
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" :fill="isInWishlist(tyre) ? '#f59e0b' : 'none'" stroke="currentColor">
+                  <svg width="20" height="20" viewBox="0 0 24 24" :fill="isInWishlist(product) ? '#f59e0b' : 'none'" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                   </svg>
                 </button>
               </div>
 
-              <div class="tyre-details">
-                <div class="tyre-brand">{{ tyre.brand }}</div>
-                <h3 class="tyre-model">{{ tyre.model }}</h3>
+              <div class="product-details">
+                <div class="product-brand">{{ product.productName }}</div>
+                <h3 class="product-model">{{ product.productModel || 'Model' }}</h3>
 
-                <div class="tyre-specs">
-                  <span class="tyre-size">{{ tyre.width }}/{{ tyre.aspectRatio }}R{{ tyre.rimDiameter }}</span>
-                  <span class="tyre-season" :class="tyre.season.toLowerCase()">{{ formatSeason(tyre.season) }}</span>
+                <div class="product-specs">
+                  <span class="product-size">{{ product.width }}/{{ product.aspectRatio }}R{{ product.rimDiameter }}</span>
+                  <span class="product-season" :class="product.season?.toLowerCase()">{{ formatSeason(product.season) }}</span>
                 </div>
 
-                <div class="tyre-vehicle">{{ formatVehicleType(tyre.vehicleType) }}</div>
+                <div class="product-vehicle">{{ formatVehicleType(product.vehicleType) }}</div>
 
-                <div class="tyre-price">
-                  <span class="price-amount">R{{ tyre.price }}</span>
+                <div class="product-price">
+                  <span class="price-amount">R{{ formatPrice(product) }}</span>
                   <span class="price-unit">each</span>
                 </div>
 
-                <div class="tyre-stock" :class="{'low-stock': tyre.stockQuantity <= 5, 'out-of-stock': tyre.stockQuantity === 0}">
-                  {{ tyre.stockQuantity === 0 ? 'Out of stock' : `${tyre.stockQuantity} in stock` }}
+                <div class="product-stock" :class="{'low-stock': product.stockQuantity <= 5, 'out-of-stock': product.stockQuantity === 0}">
+                  {{ product.stockQuantity === 0 ? 'Out of stock' : `${product.stockQuantity} in stock` }}
                 </div>
 
-                <div class="tyre-actions">
+                <div class="product-actions">
+                  <!-- Quantity selector for products with stock -->
+                  <div v-if="product.stockQuantity > 0" class="quantity-section">
+                    <div class="quantity-controls">
+                      <button
+                        class="quantity-btn"
+                        @click="decrementQuantity(product.productId)"
+                        :disabled="getProductQuantity(product.productId) <= 1"
+                      >
+                        -
+                      </button>
+                      <span class="quantity-display">{{ getProductQuantity(product.productId) }}</span>
+                      <button
+                        class="quantity-btn"
+                        @click="incrementQuantity(product.productId)"
+                        :disabled="getProductQuantity(product.productId) >= product.stockQuantity"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
                   <button
-                    class="btn-primary"
-                    @click="addToCart(tyre)"
-                    :disabled="tyre.stockQuantity === 0"
+                    class="btn-primary add-to-cart-btn"
+                    @click="addToCart(product)"
+                    :disabled="product.stockQuantity === 0 || addingToCart === product.productId"
+                    :class="{ 'loading': addingToCart === product.productId }"
                   >
-                    Add to Cart
+                    <span v-if="addingToCart === product.productId">Adding...</span>
+                    <span v-else-if="product.stockQuantity === 0">Out of Stock</span>
+                    <span v-else>Add to Cart</span>
                   </button>
-                  <button class="btn-secondary" @click="viewDetails(tyre)">
+
+                  <button class="btn-secondary" @click="viewDetails(product)">
                     Details
                   </button>
                 </div>
@@ -267,13 +307,13 @@
           </div>
 
           <!-- No Results Message -->
-          <div v-if="filteredTyres.length === 0" class="no-results">
-            <h3>No tyres match your filters</h3>
+          <div v-if="filteredProducts?.length === 0" class="no-results">
+            <h3>No products match your filters</h3>
             <p>Try adjusting your search criteria or <a href="#" @click.prevent="clearAllFilters">clear all filters</a></p>
           </div>
 
           <!-- Pagination Controls -->
-          <div v-if="filteredTyres.length > 0" class="pagination-controls">
+          <div v-if="filteredProducts?.length > 0" class="pagination-controls">
             <button
               :disabled="currentPage === 1"
               @click="currentPage--"
@@ -309,7 +349,7 @@
 </template>
 
 <script>
-import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCartStore } from '@/stores/cart'
 // import api from '@/services/api'
@@ -321,7 +361,7 @@ export default {
     const cartStore = useCartStore()
 
     // Data from backend API
-    const allTyres = ref([])
+  const allProducts = ref([])
     const loading = ref(true)
     const error = ref(null)
 
@@ -350,6 +390,12 @@ export default {
     const wishlist = ref([])
     const searchTimeout = ref(null)
 
+    // Inventory management state
+    const productQuantities = ref({}) // Track selected quantities for each product
+    const addingToCart = ref(null) // Track which product is being added to cart
+    const stockRefreshInterval = ref(null)
+    const lastStockUpdate = ref(Date.now())
+
     // Fetch tyres from backend API
     const fetchTyres = async () => {
       try {
@@ -361,9 +407,15 @@ export default {
         if (!response.ok) throw new Error('Failed to fetch products')
 
         const productsData = await response.json()
-        allTyres.value = productsData
+  allProducts.value = productsData
 
-        console.log('Products loaded successfully:', allTyres.value.length, 'items')
+  console.log('Products loaded successfully:', allProducts.value.length, 'items')
+
+  // Debug first product structure
+  if (productsData.length > 0) {
+    console.log('First product structure:', productsData[0])
+    console.log('Available fields:', Object.keys(productsData[0]))
+  }
       } catch (err) {
         console.error('Error fetching products:', err)
         error.value = 'Failed to load products. Please try again.'
@@ -399,106 +451,123 @@ export default {
 
     // Available brands for filter (extracted from products)
     const availableBrands = computed(() => {
-      const brands = new Set(allTyres.value.map(tyre => tyre.brand))
+      const brands = new Set(allProducts.value.map(product => product.productName))
       return Array.from(brands).sort()
     })
 
     // Available seasons for filter
     const availableSeasons = computed(() => {
-      const seasons = new Set(allTyres.value.map(tyre => tyre.season))
+      const seasons = new Set(allProducts.value.map(product => product.season))
       return Array.from(seasons).sort()
     })
 
     // Available vehicle types for filter
     const availableVehicleTypes = computed(() => {
-      const vehicleTypes = new Set(allTyres.value.map(tyre => tyre.vehicleType))
+      const vehicleTypes = new Set(allProducts.value.map(product => product.vehicleType))
       return Array.from(vehicleTypes).sort()
     })
 
     // Price range for inputs
     const minPrice = computed(() => {
-      if (allTyres.value.length === 0) return 0
-      return Math.min(...allTyres.value.map(tyre => parseFloat(tyre.price)))
+      if (allProducts.value.length === 0) return 0
+      const prices = allProducts.value.map(product => {
+        const priceValue = product.price || product.productPrice || product.priceAmount || 0
+        return parseFloat(priceValue)
+      }).filter(price => !isNaN(price))
+      return prices.length > 0 ? Math.min(...prices) : 0
     })
 
     const maxPrice = computed(() => {
-      if (allTyres.value.length === 0) return 0
-      return Math.max(...allTyres.value.map(tyre => parseFloat(tyre.price)))
+      if (allProducts.value.length === 0) return 0
+      const prices = allProducts.value.map(product => {
+        const priceValue = product.price || product.productPrice || product.priceAmount || 0
+        return parseFloat(priceValue)
+      }).filter(price => !isNaN(price))
+      return prices.length > 0 ? Math.max(...prices) : 0
     })
 
     // Filtered tyres based on current filters
-    const filteredTyres = computed(() => {
-      return allTyres.value.filter(tyre => {
+    const filteredProducts = computed(() => {
+      return allProducts.value.filter(product => {
         // Search term filter
         if (filters.searchTerm) {
           const searchLower = filters.searchTerm.toLowerCase()
-          const brandModel = `${tyre.brand} ${tyre.model}`.toLowerCase()
+          const brandModel = `${product.productName} ${product.productModel || ''}`.toLowerCase()
           if (!brandModel.includes(searchLower)) return false
         }
 
         // Brand filter
-        if (filters.brands.length > 0 && !filters.brands.includes(tyre.brand)) {
+        if (filters.brands.length > 0 && !filters.brands.includes(product.productName)) {
           return false
         }
 
         // Width filter
-        if (filters.widthMin && tyre.width < filters.widthMin) return false
-        if (filters.widthMax && tyre.width > filters.widthMax) return false
+        if (filters.widthMin && product.width < filters.widthMin) return false
+        if (filters.widthMax && product.width > filters.widthMax) return false
 
         // Aspect ratio filter
-        if (filters.aspectRatioMin && tyre.aspectRatio < filters.aspectRatioMin) return false
-        if (filters.aspectRatioMax && tyre.aspectRatio > filters.aspectRatioMax) return false
+        if (filters.aspectRatioMin && product.aspectRatio < filters.aspectRatioMin) return false
+        if (filters.aspectRatioMax && product.aspectRatio > filters.aspectRatioMax) return false
 
         // Rim diameter filter
-        if (filters.rimDiameterMin && tyre.rimDiameter < filters.rimDiameterMin) return false
-        if (filters.rimDiameterMax && tyre.rimDiameter > filters.rimDiameterMax) return false
+        if (filters.rimDiameterMin && product.rimDiameter < filters.rimDiameterMin) return false
+        if (filters.rimDiameterMax && product.rimDiameter > filters.rimDiameterMax) return false
 
         // Price filter
-        const tyrePrice = parseFloat(tyre.price)
-        if (filters.priceMin && tyrePrice < filters.priceMin) return false
-        if (filters.priceMax && tyrePrice > filters.priceMax) return false
+        const priceValue = product.price || product.productPrice || product.priceAmount || 0
+        const productPrice = parseFloat(priceValue)
+        if (filters.priceMin && !isNaN(productPrice) && productPrice < filters.priceMin) return false
+        if (filters.priceMax && !isNaN(productPrice) && productPrice > filters.priceMax) return false
 
         // Season filter
-        if (filters.season && tyre.season !== filters.season) return false
+        if (filters.season && product.season !== filters.season) return false
 
         // Vehicle type filter
-        if (filters.vehicleType && tyre.vehicleType !== filters.vehicleType) return false
+        if (filters.vehicleType && product.vehicleType !== filters.vehicleType) return false
 
         // Stock status filter
-        if (filters.stockStatus === 'inStock' && tyre.stockQuantity === 0) return false
-        if (filters.stockStatus === 'lowStock' && (tyre.stockQuantity > 5 || tyre.stockQuantity === 0)) return false
+        if (filters.stockStatus === 'inStock' && product.stockQuantity === 0) return false
+        if (filters.stockStatus === 'lowStock' && (product.stockQuantity > 5 || product.stockQuantity === 0)) return false
 
         return true
       })
     })
 
     // Sorted tyres
-    const sortedTyres = computed(() => {
-      const tyres = [...filteredTyres.value]
+    const sortedProducts = computed(() => {
+      const products = [...filteredProducts.value]
 
       switch (sortOption.value) {
         case 'priceLowHigh':
-          return tyres.sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
+          return products.sort((a, b) => {
+            const priceA = parseFloat(a.price || a.productPrice || a.priceAmount || 0)
+            const priceB = parseFloat(b.price || b.productPrice || b.priceAmount || 0)
+            return priceA - priceB
+          })
         case 'priceHighLow':
-          return tyres.sort((a, b) => parseFloat(b.price) - parseFloat(a.price))
+          return products.sort((a, b) => {
+            const priceA = parseFloat(a.price || a.productPrice || a.priceAmount || 0)
+            const priceB = parseFloat(b.price || b.productPrice || b.priceAmount || 0)
+            return priceB - priceA
+          })
         case 'brandAZ':
-          return tyres.sort((a, b) => a.brand.localeCompare(b.brand))
+          return products.sort((a, b) => a.productName.localeCompare(b.productName))
         case 'brandZA':
-          return tyres.sort((a, b) => b.brand.localeCompare(a.brand))
+          return products.sort((a, b) => b.productName.localeCompare(a.productName))
         default: // featured
-          return tyres
+          return products
       }
     })
 
     // Pagination
     const pageCount = computed(() => {
-      return Math.ceil(sortedTyres.value.length / itemsPerPage.value)
+      return Math.ceil(sortedProducts.value.length / itemsPerPage.value)
     })
 
-    const paginatedTyres = computed(() => {
+    const paginatedProducts = computed(() => {
       const start = (currentPage.value - 1) * itemsPerPage.value
       const end = start + itemsPerPage.value
-      return sortedTyres.value.slice(start, end)
+      return sortedProducts.value.slice(start, end)
     })
 
     const maxDisplayedPages = 5
@@ -541,66 +610,174 @@ export default {
       filters.stockStatus = 'all'
     }
 
-    // Add to cart
-    const addToCart = (tyre) => {
-      cartStore.addToCart({
-        id: tyre.id,
-        name: `${tyre.brand} ${tyre.model}`,
-        price: parseFloat(tyre.price),
-        quantity: 1,
-        image: getTyreImage(tyre),
-        stock: tyre.stockQuantity
-      })
+    // Inventory Management Functions
+    const getProductQuantity = (productId) => {
+      return productQuantities.value[productId] || 1
+    }
+
+    const incrementQuantity = (productId) => {
+      const current = getProductQuantity(productId)
+      const product = allProducts.value.find(p => (p.productId || p.id) === productId)
+      if (product && current < product.stockQuantity) {
+        productQuantities.value[productId] = current + 1
+      }
+    }
+
+    const decrementQuantity = (productId) => {
+      const current = getProductQuantity(productId)
+      if (current > 1) {
+        productQuantities.value[productId] = current - 1
+      }
+    }
+
+    // Simplified Add to cart - let backend handle stock validation during checkout
+    const addToCart = async (product) => {
+      const productId = product.productId || product.id
+      addingToCart.value = productId
+
+        console.log('🛒 Adding to cart - Product:', product.productName, 'ID:', productId, 'Displayed Stock:', product.stockQuantity)
+
+      try {
+        // Simple check: only block if UI shows 0 stock
+        if ((product.stockQuantity || 0) <= 0) {
+          console.log('❌ Product shows 0 stock in UI, blocking add to cart')
+          alert(`Sorry, ${product.productName} appears to be out of stock.`)
+          return
+        }
+
+        // Get requested quantity
+        const requestedQuantity = getProductQuantity(productId)
+        console.log('📦 Adding quantity:', requestedQuantity)
+
+        // Prepare cart item data
+        const priceValue = product.price || product.productPrice || product.priceAmount || 0
+        const numericPrice = parseFloat(priceValue)
+        const finalPrice = isNaN(numericPrice) ? 0 : numericPrice
+
+        const cartItem = {
+          id: productId,
+          brand: product.productName,
+          model: product.productModel || product.model,
+          name: `${product.productName} ${product.productModel || ''}`,
+          price: finalPrice,
+          imageUrl: getProductImage(product),
+          image: getProductImage(product),
+          stock: product.stockQuantity,
+          stockQuantity: product.stockQuantity,
+          sectionWidth: product.width,
+          aspectRatio: product.aspectRatio,
+          rimDiameter: product.rimDiameter,
+          width: product.width,
+          season: product.season,
+          vehicleType: product.vehicleType,
+          description: product.description || `${product.productName} ${product.productModel || ''} - ${product.width}/${product.aspectRatio}R${product.rimDiameter}`
+        }
+
+        // Add to cart store (stock validation will happen at checkout)
+        cartStore.addItem(cartItem, requestedQuantity)
+
+        // Show success message
+        showSuccessMessage(`Added ${requestedQuantity} item(s) to cart!`)
+        console.log('✅ Successfully added to cart')
+
+        // Reset quantity to 1
+        productQuantities.value[productId] = 1
+
+      } catch (error) {
+        console.error('Error adding to cart:', error)
+        alert('Failed to add item to cart. Please try again.')
+      } finally {
+        addingToCart.value = null
+      }
+    }
+
+    // Success message system
+    const successMessage = ref('')
+    const showSuccessMessage = (message) => {
+      successMessage.value = message
+      setTimeout(() => {
+        successMessage.value = ''
+      }, 3000)
+    }
+
+    // Periodic stock refresh
+    const refreshStockLevels = async () => {
+      if (Date.now() - lastStockUpdate.value < 30000) return // Limit to every 30 seconds
+
+      try {
+        const response = await fetch('http://localhost:8080/tymelesstyre/api/products')
+        if (response.ok) {
+          const latestProducts = await response.json()
+
+          // Update stock levels for existing products
+          latestProducts.forEach(updatedProduct => {
+            const existingProduct = allProducts.value.find(p =>
+              (p.productId || p.id) === (updatedProduct.productId || updatedProduct.id)
+            )
+            if (existingProduct) {
+              existingProduct.stockQuantity = updatedProduct.stockQuantity
+            }
+          })
+
+          lastStockUpdate.value = Date.now()
+        }
+      } catch (err) {
+        console.warn('Could not refresh stock levels:', err)
+      }
     }
 
     // View details
-    const viewDetails = (tyre) => {
-      router.push(`/product/${tyre.id}`)
+    const viewDetails = (product) => {
+      router.push(`/product/${product.id}`)
     }
 
     // Wishlist functionality
-    const isInWishlist = (tyre) => {
-      return wishlist.value.some(item => item.id === tyre.id)
+    const isInWishlist = (product) => {
+      return wishlist.value.some(item => item.id === product.id)
     }
 
-    const toggleWishlist = (tyre) => {
-      const index = wishlist.value.findIndex(item => item.id === tyre.id)
+    const toggleWishlist = (product) => {
+      const index = wishlist.value.findIndex(item => item.id === product.id)
       if (index === -1) {
-        wishlist.value.push(tyre)
+        wishlist.value.push(product)
       } else {
         wishlist.value.splice(index, 1)
       }
     }
 
-    // Helper functions
-const getTyreImage = (tyre) => {
-  // Hardcoded mapping of brands/models to images
-  const images = {
-    'Pirelli': '/images/tyres/pirelli.jpg',
-    'Michelin': '/images/tyres/Michelin.jpg',
-    'Bridgestone': '/images/tyres/Bridgestone.jpg',
-    'Goodyear': '/images/tyres/goodyear.avif',
-    'Continental': '/images/tyres/continental.jpg',
-    'Default': '/images/tyres/default.jpg'
-  }
+        // Helper functions
+        const getProductImage = (product) => {
+          const productId = product.productId || product.id
+          if (productId) {
+            return `http://localhost:8080/tymelesstyre/api/products/${productId}/image`
+          }
+          // fallback image
+          return '/images/tyres/default.jpg'
+        }
 
-  // Match brand first
-  if (images[tyre.brand]) {
-    return images[tyre.brand]
-  }
-
-  // Optional: match model if needed
-  if (tyre.model && images[tyre.model]) {
-    return images[tyre.model]
-  }
-
-  // Fallback if no match found
-  return images['Default']
-}
+        const handleImageError = (event) => {
+          // Set a fallback image when the image fails to load
+          event.target.src = '/images/tyres/default.jpg'
+        }
 
 
-    const formatPrice = (price) => {
-      return parseFloat(price).toFixed(2)
+    const formatPrice = (product) => {
+      // Check multiple possible price field names from backend
+      const priceValue = product.price || product.productPrice || product.priceAmount || 0
+
+      // Debug logging for first few products
+      if (allProducts.value.length <= 3) {
+        console.log('Product price debug:', {
+          productId: product.productId,
+          price: product.price,
+          productPrice: product.productPrice,
+          priceAmount: product.priceAmount,
+          allFields: Object.keys(product)
+        })
+      }
+
+      const numericPrice = parseFloat(priceValue)
+      return isNaN(numericPrice) ? '0.00' : numericPrice.toFixed(2)
     }
 
     const formatSeason = (season) => {
@@ -627,10 +804,22 @@ const getTyreImage = (tyre) => {
       console.log('ProductsView mounted, testing connection...')
       testConnection()
       fetchTyres()
+
+      // Set up periodic stock refresh every 2 minutes
+      stockRefreshInterval.value = setInterval(() => {
+        refreshStockLevels()
+      }, 120000)
+    })
+
+    // Cleanup interval on unmount
+    onUnmounted(() => {
+      if (stockRefreshInterval.value) {
+        clearInterval(stockRefreshInterval.value)
+      }
     })
 
     return {
-      allTyres,
+      allProducts,
       loading,
       error,
       filters,
@@ -642,8 +831,8 @@ const getTyreImage = (tyre) => {
       availableVehicleTypes,
       minPrice,
       maxPrice,
-      filteredTyres,
-      paginatedTyres,
+      filteredProducts,
+      paginatedProducts,
       pageCount,
       displayedPages,
       handleSearchInput,
@@ -652,11 +841,20 @@ const getTyreImage = (tyre) => {
       viewDetails,
       isInWishlist,
       toggleWishlist,
-      getTyreImage,
+      getProductImage,
+      handleImageError,
       formatPrice,
       formatSeason,
       formatVehicleType,
-      fetchTyres
+      fetchTyres,
+      // Inventory management
+      productQuantities,
+      addingToCart,
+      successMessage,
+      getProductQuantity,
+      incrementQuantity,
+      decrementQuantity,
+      refreshStockLevels
     }
   }
 }
@@ -830,6 +1028,65 @@ const getTyreImage = (tyre) => {
   grid-template-columns: 1fr;
 }
 
+.product-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.product-image {
+  position: relative;
+  height: 200px;
+  width: 100%;
+  overflow: hidden;
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* Changed from cover to contain to show full image */
+  object-position: center;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.product-image img[src=""],
+.product-image img:not([src]) {
+  opacity: 0;
+}
+
+.product-image::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>') no-repeat center;
+  background-size: contain;
+  opacity: 0.3;
+  z-index: 1;
+}
+
+.product-card:hover .product-image img {
+  transform: scale(1.05);
+}
+
+/* Keep original tyre classes for backward compatibility */
 .tyre-card {
   background: white;
   border-radius: 8px;
@@ -871,6 +1128,102 @@ const getTyreImage = (tyre) => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.product-details {
+  padding: 16px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-brand {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.product-model {
+  font-size: 1.1rem;
+  margin: 0 0 12px 0;
+  color: #1f2937;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.product-specs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.product-size {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.product-season {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.product-season.summer {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.product-season.winter {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.product-season.all_season {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.product-vehicle {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.product-price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.product-stock {
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.product-stock.low-stock {
+  color: #f59e0b;
+}
+
+.product-stock.out-of-stock {
+  color: #ef4444;
+}
+
+.product-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+}
+
+/* Keep original tyre classes for backward compatibility */
 .tyre-details {
   padding: 15px;
 }
@@ -1130,6 +1483,10 @@ const getTyreImage = (tyre) => {
     width: 100%;
     max-height: none;
   }
+
+  .grid-view {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -1144,11 +1501,172 @@ const getTyreImage = (tyre) => {
   }
 
   .grid-view {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+  }
+
+  .product-image {
+    height: 150px;
+  }
+
+  .product-details {
+    padding: 12px;
+  }
+
+  .product-actions {
+    flex-direction: column;
   }
 
   .tyre-actions {
     flex-direction: column;
   }
 }
+
+@media (max-width: 480px) {
+  .grid-view {
+    grid-template-columns: 1fr;
+  }
+
+  .product-image {
+    height: 180px;
+  }
+}
+
+/* Success Message Styles */
+.success-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #10b981;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  z-index: 1000;
+  animation: slideInRight 0.3s ease-out;
+}
+
+.success-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Quantity Controls Styles */
+.quantity-section {
+  margin-bottom: 12px;
+}
+
+.quantity-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.quantity-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 16px;
+  color: #374151;
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quantity-btn:hover:not(:disabled) {
+  background: #3b82f6;
+  color: white;
+  transform: scale(1.05);
+}
+
+.quantity-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.quantity-display {
+  width: 40px;
+  text-align: center;
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+/* Enhanced Add to Cart Button */
+.add-to-cart-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.add-to-cart-btn.loading {
+  color: transparent;
+}
+
+.add-to-cart-btn.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Stock Status Enhanced Styles */
+.product-stock {
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.product-stock:not(.low-stock):not(.out-of-stock) {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.product-stock.low-stock {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.product-stock.out-of-stock {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
 </style>
